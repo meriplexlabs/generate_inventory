@@ -1,0 +1,46 @@
+---
+- name: Retrieve DHCP lease list from Fortigate
+  raw: execute dhcp lease-list
+  register: dhcp_output
+
+- name: Ensure pandas and PyYAML are installed
+  delegate_to: localhost
+  pip:
+    name: 
+      - pandas
+      - pyyaml
+    state: present
+
+- name: Ensure CSV file is present on the local machine
+  delegate_to: localhost
+  copy:
+    src: "{{ playbook_dir }}/image.csv"
+    dest: /tmp/image.csv
+
+- name: Write DHCP lease data to temporary file
+  delegate_to: localhost
+  copy:
+    content: "{{ dhcp_output.stdout }}"
+    dest: /tmp/dhcp_data.txt
+
+- name: Parse DHCP lease list, update CSV, and create inventory file
+  delegate_to: localhost
+  shell: "python3 {{ role_path }}/files/update_csv_and_inventory.py /tmp/dhcp_data.txt /tmp/image.csv"
+  register: script_output
+  ignore_errors: true
+
+- name: Display script output
+  debug:
+    var: script_output.stdout
+
+- name: Copy updated CSV back to the playbook directory
+  delegate_to: localhost
+  copy:
+    src: /tmp/image.csv
+    dest: "{{ playbook_dir }}/image.csv"
+
+- name: Copy generated inventory file to the playbook directory
+  delegate_to: localhost
+  copy:
+    src: /tmp/pre-inventory.yml
+    dest: "{{ playbook_dir }}/pre-inventory.yml"
